@@ -54,8 +54,7 @@ def get_basis(df=None,
             transaction being done as described in each record (row) of df.
             Default is 'Type'
         basis_col_values (list(str)): List of strings values in the txn_col which
-            the
-            to be summed as part of the basis calculation. Default is 
+            need to be summed as part of the basis calculation.
         drop_cols list (list(str)): List of column names to be removed from the
             returned dataframe. Default is ['Trade_date', 'Quantity', 'Price']
     
@@ -71,7 +70,7 @@ def get_basis(df=None,
     else:
         # filter for rows with security of interest
         df_basis = df.loc[df[symbol_col].eq(symbol), return_cols].copy()
-        # filter out unneeded columns
+        # filter out unneeded transactions
         df_basis = df_basis.loc[df_basis[txn_type_col].isin(basis_col_values), :].copy()
         if invert_amount:
             df_basis[amount_col] = -df_basis[amount_col]
@@ -79,3 +78,45 @@ def get_basis(df=None,
         df_basis['Basis'] = df_basis['Amount'].cumsum()
     
     return df_basis
+    
+def get_position_history(df=None,
+                         symbol_col='Symbol',
+                         symbol=None,
+                         quantity_col='Quantity',
+                         txn_type_col='Type',
+                         position_col_values=None,
+                         drop_cols=['Trade_date', 'Name', 'Note']):
+    """ Creates a dataframe with a Units column indicating the accumulated
+    position in a stock or fund.
+    
+    Args:
+        df (pandas dataframe): Dataframe holding all transactions for an account
+            of interest
+        symbol_col (str): column name in df holding the stock or fund ticker
+            symbol
+        symbol (str): Symbol for the stock or fund of interest (e.g. 'VMFXX')
+        quantity_col (str): column name in df holding the number of units/shares
+            that were bought or sold in a given transaction
+        txn_col (str): Name of the column in df which indicates the type of
+            transaction being done as described in each record (row) of df.
+            Default is 'Type'
+        position_col_values (list(str)): 
+        drop_cols list (list(str)): List of column names to be removed from the
+            returned dataframe. Default is ['Trade_date', 'Name', 'Note']
+    
+    """
+    # remove columns not asked for
+    return_cols = [c for c in list(df.columns) if c not in drop_cols]
+    if symbol is None:
+        print("get_position - NO SYMBOL SPECIFIED: RETURNING UNALTERED df")
+        return df
+    else:
+        df_pos = df.loc[df[symbol_col].eq(symbol), return_cols].copy()
+        # filter out unneeded transactions
+        df_pos = df_pos.loc[df_pos[txn_type_col] \
+                       .isin(position_col_values), :].copy()
+    
+    # TODO consolidated paired dividend/reinvestment transactions
+    
+    
+    return df_pos
