@@ -9,7 +9,7 @@ def convert_currency_to_float(df, col_to_convert, keep_nan=True):
 
     Args:
     df: pandas dataframe
-    col_to_convert: object or str
+    col_to_convert: object or str - name of the column to convert to float
     keep_non: bool - True (default) keeps missing values as NaNs. False converts
                      missing values to 0
 
@@ -70,7 +70,7 @@ def get_basis(df=None,
     else:
         # filter for rows with security of interest
         df_basis = df.loc[df[symbol_col].eq(symbol), return_cols].copy()
-        # filter out unneeded transactions
+        # filter for transactions that are basis-related
         df_basis = df_basis.loc[df_basis[txn_type_col].isin(basis_col_values), :].copy()
         if invert_amount:
             df_basis[amount_col] = -df_basis[amount_col]
@@ -79,22 +79,23 @@ def get_basis(df=None,
     
     return df_basis
     
-def get_position_history(df = None,
-                         date_col = 'Settlement_date',
-                         symbol_col = 'Symbol',
-                         symbol = None,
-                         quantity_col = 'Quantity',
-                         price_col = 'Price',
-                         txn_type_col = 'Type',
-                         amount_col = 'Amount',
-                         position_col_values = None,
-                         div_trans_types = ['Dividend', 'Reinvestment'],
-                         buy_sell_trans_types = ['Buy', 'Sell'],
-                         any_div_reinvest = True,
-                         buy_amount_is_negative = True,
-                         drop_cols = ['Trade_date', 'Name', 'Note']):
-    """ Creates a dataframe with a Units column indicating the accumulated
-    position in a stock or fund.
+def get_position(df = None,
+                 date_col = 'Settlement_date',
+                 symbol_col = 'Symbol',
+                 symbol = None,
+                 quantity_col = 'Quantity',
+                 price_col = 'Price',
+                 txn_type_col = 'Type',
+                 amount_col = 'Amount',
+                 position_col_values = None,
+                 div_trans_types = ['Dividend', 'Reinvestment'],
+                 buy_sell_trans_types = ['Buy', 'Sell'],
+                 any_div_reinvest = True,  # TODO: calc this and remove
+                 buy_amount_is_negative = True,
+                 drop_cols = ['Trade_date', 'Name', 'Note']):
+    """ Creates a dataframe that add two columns to df: Position and Value. These
+    columns track the accumulated position and value of the stock or fund
+    (specified by the symbol parameter) respectively.
     
     Args:
         df (pandas dataframe): Dataframe holding all transactions for an account
@@ -130,14 +131,15 @@ def get_position_history(df = None,
         in the 'Position' and 'Value' columns resepectively.
     
     """
-    # remove columns not asked for
+    # calc cols in return df by removing columns not asked for
     return_cols = [c for c in list(df.columns) if c not in drop_cols]
     if symbol is None:
         print("get_position_history - NO SYMBOL SPECIFIED: RETURNING UNALTERED df")
         return df
     else:
+        # get the transactions for this symbol only
         df_sym = df.loc[df[symbol_col].eq(symbol), return_cols].copy()
-        # filter out unneeded transactions
+        # filter out unneeded transactions for this symbol
         df_sym = df_sym.loc[df_sym[txn_type_col] \
                        .isin(position_col_values), :].copy()
     
@@ -167,14 +169,19 @@ def get_position_history(df = None,
         # dividends all retained, none are reinvested
         df_div['paired'] = False
     
+    
+    
     # create df of sales and non-dividend purchases
     df_buy_sell = df_sym.loc[df_sym['Type'].isin(buy_sell_trans_types)].copy()
     if buy_amount_is_negative:
         df_buy_sell[amount_col] = -df_buy_sell[amount_col]
     # create df of positions
-    df_positions = pd.concat([df_buy_sell, df_div_reinvs])  # axis=0 by default
+    df_positions = pd.concat([df_buy_sell, df_div_reinvs])  # axis=0 (rows) default
     df_positions = df_positions.sort_values(by=['Settlement_date'], ascending=True)
     df_positions['Position'] = df_positions['Quantity'].cumsum()
+    # calculate value based on transaction prices
     df_positions['Value'] = df_positions['Position'] * df_positions[price_col]
-        
+    # round down in the 3rd place like Vanguard does
+    df_positions['Value'] = (np.floor(df_positions['Value'] * 100) / 100).round(2)
+    
     return df_positions
