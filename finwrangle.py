@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import datetime as dt
 
 
 def convert_currency_to_float(df, col_to_convert, keep_nan=True):
@@ -28,57 +28,123 @@ def convert_currency_to_float(df, col_to_convert, keep_nan=True):
         df.loc[df[col_to_convert] == 0, col_to_convert] = np.nan
 
     return df
-
-def get_basis(df=None,
-              amount_col='Amount',
-              invert_amount=True,
-              symbol_col='Symbol',
-              symbol=None,
-              txn_type_col='Type',
-              basis_col_values=None,
-              drop_cols=['Trade_date', 'Name', 'Quantity', 'Price']):
-    """ Creates a dataframe with a Basis column indicating the accumulated amount
-    invested in a stock or fund.
+    
+def fix_date_cols(df, date_col="Date", keep_first_n=10):
+    """
+    
+    
+    """
+    # grab first n characters of date
+    df[date_col] = df[date_col].str[:keep_first_n]
+    # convert string date to datetime
+    # df[date_col] = pd.to_datetime(df[date_col]).dt.date
+    df[date_col] = pd.to_datetime(df[date_col])
+    
+    return df
+    
+    
+    
+    
+def get_clean_account(df=None, config={}, unit_price_col=False):
+    """ Performs the following cleaning steps to df which are described in the
+    notebook: Zero out the empty values in the `Fees` column, replace spaces with
+    _ in date column names, replace `NaN`s in `Symbol` column with `CASH` if value
+    in `Name` columns is *CASH*, set `Price` column values to 1.00 for cash and
+    money market mutual funds such as VMFXX, and replace `NaN`s in `Note` column
+    with empty strings
     
     Args:
-        df (pandas dataframe): Dataframe holding all transactions for an account
-            of interest
-        amount_col (str): column name containing the values used to calculate
+        df (pandas dataframe): Dataframe holding all transactions the entire
+            account (e.g. Roth or Traditional IRA)
+        config (dict): dictionary specifying key features needed to properly clean
+            df. Expected keys: 'symbol_col', 'symbol_filter', 'fund_name_col',
+                               'quantity_col', 'price_col', 'fees_col',
+                               'amount_col', and 'notes_col'
+        unit_price_col (bool): If True, sets all the values in the price_col to
+            1.00 and the values in the quantity_col to the value of the Amount
+            column which is useful for money market and cash accounts
+    
+    Returns:
+      
+    
+    
+    """
+    # filter for specified account
+    df_acc = df.loc[df[config['symbol_col']] == config['symbol_filter'], :].copy()
+    # if share price is always $1 like money market or cash, fill in mising values
+    # and set the amount = quantity
+    if unit_price_col:
+        df_acc.loc[df_acc[config['symbol_col']] == config['symbol_filter'],
+            [config['price_col']]] = 1.00
+        # for accounts with unit price: amount = quantity
+        df_acc.loc[df_acc[config['symbol_col']] == config['symbol_filter'],
+            [config['quantity_col']]] = df_acc[config['amount_col']]
+    
+    return df_acc
+
+
+def get_value(df=None):
+    """
+    
+    
+    """
+    
+    pass
+
+
+
+
+def add_basis(df=None, config={}):
+    """ Adds a Basis column indicating the accumulated amount invested in a stock 
+    or fund.
+    
+    Args:
+        df (pandas dataframe): Dataframe holding all transactions for a specific
+            account (ticker) of interest
+        config (dict): 
+        
+        
+        
+        basis_value_col (str): column name containing the values used to calculate
             basis. Default is 'Amount'
-        invert_amount (bool): If True, change the sign of values in amount_col.
+        basis_change (dict): If True, change the sign of values in amount_col.
             Default is True
-        symbol_col (str): column name in df holding the stock or fund ticker
-            symbol
-        symbol (str): Symbol for the stock or fund of interest (e.g. 'VMFXX')
-        txn_col (str): Name of the column in df which indicates the type of
-            transaction being done as described in each record (row) of df.
-            Default is 'Type'
-        basis_col_values (list(str)): List of strings values in the txn_col which
-            need to be summed as part of the basis calculation.
+        
+        
+        
+        
         drop_cols list (list(str)): List of column names to be removed from the
             returned dataframe. Default is ['Trade_date', 'Quantity', 'Price']
     
     Returns:
-        pandas dataframe:
+        pandas dataframe with a Basis column added
     
     """
-    # remove columns not asked for
-    return_cols = [c for c in list(df.columns) if c not in drop_cols]
-    if symbol is None:
-        print("get_basis - NO SYMBOL SPECIFIED: RETURNING UNALTERED df")
-        return df
-    else:
-        # filter for rows with security of interest
-        df_basis = df.loc[df[symbol_col].eq(symbol), return_cols].copy()
-        # filter for transactions that are basis-related
-        df_basis = df_basis.loc[df_basis[txn_type_col].isin(basis_col_values), :].copy()
-        if invert_amount:
-            df_basis[amount_col] = -df_basis[amount_col]
-        # calculate basis
-        df_basis['Basis'] = df_basis['Amount'].cumsum()
+    def basis_change(change_type, add_types, sub_types, trans_amount):
+        """
+        """
+        if change_type in add_types:
+            return_val = np.abs(trans_amount)
+        elif change_type in sub_types:
+            return_val = -np.abs(trans_amount)
+        else:
+            return_val = float(0)
+            
+        return return_val
     
-    return df_basis
+    df_updated = df.copy()
+    # apply the basis_change function to each row of the df
+    df_updated['basis_change'] = df_updated.apply(lambda row:
+                                                  basis_change(
+                                                    row[config['type_col']],
+                                                    config['basis_increase_cols'],
+                                                    config['basis_decrease_cols'],
+                                                    row[config['amount_col']]
+                                                  ), axis=1)
     
+    return df_updated
+
+
 def get_position(df = None,
                  date_col = 'Settlement_date',
                  symbol_col = 'Symbol',
