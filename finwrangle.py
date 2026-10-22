@@ -94,7 +94,11 @@ def get_value(df=None):
 
 
 
-def add_basis(df=None, config={}):
+def add_basis(df=None, config={'col_name': 'basis_change',
+                               'amount_col': "Amount",
+                               'type_col': "Type",
+                               'basis_increase_cols': ['Sweep in', 'Reinvestment'],
+                               'basis_decrease_cols': ['Sweep out', 'Dividend']}):
     """ Adds a Basis column indicating the accumulated amount invested in a stock 
     or fund.
     
@@ -133,32 +137,29 @@ def add_basis(df=None, config={}):
         return return_val
     
     df_updated = df.copy()
-    # apply the basis_change function to each row of the df
-    df_updated['basis_change'] = df_updated.apply(lambda row:
-                                                  basis_change(
-                                                    row[config['type_col']],
-                                                    config['basis_increase_cols'],
-                                                    config['basis_decrease_cols'],
-                                                    row[config['amount_col']]
-                                                  ), axis=1)
+    # if any of the require require config keys are missing, flag the user
+    try:
+        required_config_keys = {'col_name', 'amount_col', 'type_col',
+                               'basis_increase_cols', 'basis_decrease_cols'}
+        if len(set(config.keys()).difference(required_config_keys)) == 0:
+            df_updated['basis_change'] = \
+                df_updated.apply(lambda row:
+                                     basis_change(
+                                         row[config['type_col']],
+                                         config['basis_increase_cols'],
+                                         config['basis_decrease_cols'],
+                                         row[config['amount_col']]
+                                     ), axis=1
+                                 )
+    except LookupError:
+        print("add_basis function: One or more configuration keys are missing!")
+        return None
     
     return df_updated
 
 
 def get_position(df = None,
-                 date_col = 'Settlement_date',
-                 symbol_col = 'Symbol',
-                 symbol = None,
-                 quantity_col = 'Quantity',
-                 price_col = 'Price',
-                 txn_type_col = 'Type',
-                 amount_col = 'Amount',
-                 position_col_values = None,
-                 div_trans_types = ['Dividend', 'Reinvestment'],
-                 buy_sell_trans_types = ['Buy', 'Sell'],
-                 any_div_reinvest = True,  # TODO: calc this and remove
-                 buy_amount_is_negative = True,
-                 drop_cols = ['Trade_date', 'Name', 'Note']):
+                 config = {}):
     """ Creates a dataframe that add two columns to df: Position and Value. These
     columns track the accumulated position and value of the stock or fund
     (specified by the symbol parameter) respectively.
