@@ -105,20 +105,17 @@ def add_basis(df=None, config={'col_name': 'basis_change',
     Args:
         df (pandas dataframe): Dataframe holding all transactions for a specific
             account (ticker) of interest
-        config (dict): 
-        
-        
-        
-        basis_value_col (str): column name containing the values used to calculate
-            basis. Default is 'Amount'
-        basis_change (dict): If True, change the sign of values in amount_col.
-            Default is True
-        
-        
-        
-        
-        drop_cols list (list(str)): List of column names to be removed from the
-            returned dataframe. Default is ['Trade_date', 'Quantity', 'Price']
+        config (dict): dictionary specifying key features needed calculate basis
+            Expected KVs : 'col_name' (str) - name to use for the calculated basis
+                                              column,
+                           'amount_col' (str) - name of column in df containing
+                                                transaction amounts,
+                           'type_col' (str), - name of column in df containing
+                                               transaction types,
+                           'basis_increase_types' list(str) - list of transaction
+                                                  type which increase the basis,
+                           'basis_decrease_types' list(str) - list of transaction
+                                                  type which decrease the basis,
     
     Returns:
         pandas dataframe with a Basis column added
@@ -139,21 +136,26 @@ def add_basis(df=None, config={'col_name': 'basis_change',
     df_updated = df.copy()
     # if any of the require require config keys are missing, flag the user
     try:
-        required_config_keys = {'col_name', 'amount_col', 'type_col',
-                               'basis_increase_cols', 'basis_decrease_cols'}
-        if len(set(config.keys()).difference(required_config_keys)) == 0:
-            df_updated['basis_change'] = \
-                df_updated.apply(lambda row:
-                                     basis_change(
-                                         row[config['type_col']],
-                                         config['basis_increase_cols'],
-                                         config['basis_decrease_cols'],
-                                         row[config['amount_col']]
-                                     ), axis=1
-                                 )
-    except LookupError:
-        print("add_basis function: One or more configuration keys are missing!")
-        return None
+        df is not None
+        try:
+            required_config_keys = {'col_name', 'amount_col', 'type_col',
+                                    'basis_increase_cols', 'basis_decrease_cols'}
+            if len(set(config.keys()).difference(required_config_keys)) == 0:
+                df_updated['basis_change'] = \
+                    df_updated.apply(lambda row:
+                                         basis_change(
+                                             row[config['type_col']],
+                                             config['basis_increase_cols'],
+                                             config['basis_decrease_cols'],
+                                             row[config['amount_col']]
+                                         ), axis=1
+                                     )
+        except LookupError:
+            print("add_basis function: One or more configuration keys are missing!")
+            return None
+    except Exception as e:
+        print("basis_change: no dataframe passed in, returning None")
+        df_updated = None
     
     return df_updated
 
