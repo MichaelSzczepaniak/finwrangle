@@ -105,7 +105,8 @@ def add_basis_change(df=None,
     
     Args:
         df (pandas dataframe): Dataframe holding all transactions for a specific
-            account (ticker) of interest
+            account (ticker) of interest. df must have at least columns with names
+            specified by the values of config['amount_col'] and config['type_col']
         config (dict): dictionary specifying key features needed calculate basis
             Expected KVs : 'col_name' (str) - name to use for the calculated basis
                                               column,
@@ -137,16 +138,17 @@ def add_basis_change(df=None,
         
         """
         if change_type in add_types:
-            return_val = np.abs(trans_amount)
+            basis_change_val = np.abs(trans_amount)
         elif change_type in sub_types:
-            return_val = -np.abs(trans_amount)
+            basis_change_val = -np.abs(trans_amount)
         else:
-            return_val = float(0)
+            basis_change_val = float(0)
             
-        return return_val
+        return basis_change_val
     
     df_basis = df.copy()
-    # if any of the require require config keys are missing, flag the user
+    # if df is missing or if any of the require config keys are missing,
+    # flag the user and return None
     try:
         df is not None
         try:
@@ -173,13 +175,21 @@ def add_basis_change(df=None,
 
 
 def add_position_change(df = None,
-                        config = {}):
-    """ Adds a postion_change column indicating the accumulated amount invested in
+                        config =
+                        {
+                            'col_name': 'pos_change',
+                            'amount_col': "Amount",
+                            'type_col': "Type",
+                            'pos_increase_cols': ['Sweep in', 'Reinvestment'],
+                            'pos_decrease_cols': ['Sweep out']
+                        }):
+    """ Adds a postion_change column indicating the accumulated shares invested in
     a stock or fund.
     
     Args:
         df (pandas dataframe): Dataframe holding all transactions for a specific
-            account (ticker) of interest
+            account (ticker) of interest. df must have at least columns with names
+            specified by the values of config['amount_col'] and config['type_col']
         config (dict): dictionary specifying key features needed calculate basis
             Expected KVs : 'col_name' (str) - name to use for the calculated basis
                                               column,
@@ -196,10 +206,55 @@ def add_position_change(df = None,
         pandas dataframe with a position_change column added
     
     """
+    def position_change(change_type, add_types, sub_types, trans_amount):
+        """ Calculates change in the investment position for a single transaction
+        
+        Args:
+            change_type (str): column name holding the type of transaction used to
+                determine whether the amount adds to or subtracts from the position
+            add_types list(str): list of transaction types which add to the position
+            sub_types list(str): list of transaction types which subtract from the position
+            trans_amount (float): amount of the transaction impacting the position
+            
+        Returns:
+            float value of the change in position for a transaction
+        
+        """
+        if change_type in add_types:
+            position_change_val = np.abs(trans_amount)
+        elif change_type in sub_types:
+            position_change_val = -np.abs(trans_amount)
+        else:
+            position_change_val = float(0)
+            
+        return position_change_val
     # 
-    df_pos = df.loc[df[symbol_col].eq(symbol), return_cols].copy()
+    df_pos = df.copy()
+    # if df is missing or if any of the require config keys are missing,
+    # flag the user and return None
+    try:
+        df is not None
+        try:
+            required_config_keys = {'col_name', 'amount_col', 'type_col',
+                                    'pos_increase_cols', 'pos_decrease_cols'}
+            if len(set(config.keys()).difference(required_config_keys)) == 0:
+                df_pos['position_change'] = \
+                    df_pos.apply(lambda row:
+                                         position_change(
+                                             row[config['type_col']],
+                                             config['pos_increase_cols'],
+                                             config['pos_decrease_cols'],
+                                             row[config['amount_col']]
+                                         ), axis=1
+                                     )
+        except LookupError:
+            print("add_position_change: One or more configuration keys are missing!")
+            return None
+    except Exception as e:
+        print("add_position_change: no dataframe passed in, returning None")
+        df_pos = None
     
-    # 
+    return df_pos
     
     
     
