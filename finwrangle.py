@@ -28,7 +28,8 @@ def convert_currency_to_float(df, col_to_convert, keep_nan=True):
         df.loc[df[col_to_convert] == 0, col_to_convert] = np.nan
 
     return df
-    
+
+
 def fix_date_cols(df, date_col="Date", keep_first_n=10):
     """
     
@@ -41,10 +42,8 @@ def fix_date_cols(df, date_col="Date", keep_first_n=10):
     df[date_col] = pd.to_datetime(df[date_col])
     
     return df
-    
-    
-    
-    
+
+
 def get_clean_account(df=None, config={}, unit_price_col=False):
     """ Performs the following cleaning steps to df which are described in the
     notebook: Zero out the empty values in the `Fees` column, replace spaces with
@@ -81,17 +80,6 @@ def get_clean_account(df=None, config={}, unit_price_col=False):
             [config['quantity_col']]] = df_acc[config['amount_col']]
     
     return df_acc
-
-
-def get_value(df=None):
-    """
-    
-    
-    """
-    
-    pass
-
-
 
 
 def add_basis_change(df=None,
@@ -255,13 +243,33 @@ def add_position_change(df = None,
         df_pos = None
     
     return df_pos
-    
-    
-    
 
-    # calculate value based on transaction prices
-    #df_positions['Value'] = df_positions['Position'] * df_positions[price_col]
-    # round down in the 3rd place like Vanguard does
-    #df_positions['Value'] = (np.floor(df_positions['Value'] * 100) / 100).round(2)
+
+def calc_value(df=None, config={"price_col": 'Price',
+                                "position_col": 'Position',
+                                "value_col": 'Value',
+                                "round_down": True,
+                                "round_to": 2,
+                                "unit_price": False
+                                }):
+    """
     
-    return df_pos
+    """
+    
+    if df is not None:
+        df_value = df.copy()
+    else:
+        raise Exception("calc_value: No dataframe was defined. Exiting")
+    
+    if config["unit_price"]:
+        df_value[config["value_col"]] = df_value[config["position_col"]]
+    else:
+        # calculate value based on transaction prices
+        df_value[config["value_col"]] = df_value[config["position_col"]] * df_value[config["price_col"]]
+        if config["round_down"]:
+            # round down in the 3rd place like Vanguard does
+            df_value[config["value_col"]] = \
+                (np.floor(df_value[config["value_col"]] * 100) \
+                 / 100).round(config["round_to"])
+    
+    return df_value
