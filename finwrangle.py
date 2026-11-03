@@ -13,7 +13,7 @@ def convert_currency_to_float(df, col_to_convert, keep_nan=True):
     keep_non: bool - True (default) keeps missing values as NaNs. False converts
                      missing values to 0
 
-    Return
+    Return:
     dataframe df with an updated col_to_convert column
     """
     # convert missing currency value to "0"
@@ -64,7 +64,7 @@ def get_clean_account(df=None, config={}, unit_price_col=False):
             column which is useful for money market and cash accounts
     
     Returns:
-      
+        df (pandas dataframe): a cleaned Dataframe as described above
     
     
     """
@@ -80,6 +80,39 @@ def get_clean_account(df=None, config={}, unit_price_col=False):
             [config['quantity_col']]] = df_acc[config['amount_col']]
     
     return df_acc
+
+
+def sort_same_date_by(df=None, date_col='Date', by_col='Type', by_order_dict=None,
+                      keep_order_col=True, by_order_asc=True):
+    """ Sorts a dataframe by date_col primary and by by_col secondarily where the
+	secondary sort key (by_col) order is customized by the by_order_dict.
+	
+	Args:
+        df (pandas dataframe): Dataframe holding all transactions for a specific
+            holding (e.g. VMFXX or VDIGX)
+        date_col (str): name of column containing the date
+        by_col (str): name of column containing the type of transaction
+        by_order_dict (dict): specifies how the by_col column should be sorted.
+            Keys are the unique values in the by_col column.
+            Values are the order in which the secondary sort should be done.
+    
+    Returns:
+        df (pandas dataframe): a cleaned Dataframe as described above
+    
+    """
+    if (df is not None): # and (by_order_dict is not None):
+        df_sorted = df.copy()
+        # create custom sort order column to sort within same dates
+        df_sorted['type_order'] = df_sorted[by_col].map(by_order_dict)
+        df_sorted = df_sorted.sort_values(by=[date_col, 'type_order'],
+                                          ascending=True)
+        if not keep_order_col:
+            df_sorted.drop(columns=['type_order'], inplace=True)
+    else:
+        raise Exception("sort_same_date_by: Missing df, or/and by_order_dict - EXITING")
+
+    return df_sorted
+
 
 
 def add_basis_change(df=None,
