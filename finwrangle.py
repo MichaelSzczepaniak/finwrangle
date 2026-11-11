@@ -85,9 +85,9 @@ def get_clean_account(df=None, config={}, unit_price_col=False):
 def sort_same_date_by(df=None, date_col='Date', by_col='Type', by_order_dict=None,
                       keep_order_col=True, by_order_asc=True):
     """ Sorts a dataframe by date_col primary and by by_col secondarily where the
-	secondary sort key (by_col) order is customized by the by_order_dict.
-	
-	Args:
+    secondary sort key (by_col) order is customized by the by_order_dict.
+     
+    Args:
         df (pandas dataframe): Dataframe holding all transactions for a specific
             holding (e.g. VMFXX or VDIGX)
         date_col (str): name of column containing the date
@@ -199,10 +199,10 @@ def add_position_change(df = None,
                         config =
                         {
                             'col_name': 'pos_change',
-                            'amount_col': "Amount",
+                            'quantity_col': "Quantity",
                             'type_col': "Type",
-                            'pos_increase_cols': ['Sweep in', 'Reinvestment'],
-                            'pos_decrease_cols': ['Sweep out']
+                            'pos_increase_cols': [],
+                            'pos_decrease_cols': []
                         }):
     """ Adds a postion_change column indicating the accumulated shares invested in
     a stock or fund.
@@ -210,24 +210,24 @@ def add_position_change(df = None,
     Args:
         df (pandas dataframe): Dataframe holding all transactions for a specific
             account (ticker) of interest. df must have at least columns with names
-            specified by the values of config['amount_col'] and config['type_col']
+            specified by the values of config['quantity_col'] and config['type_col']
         config (dict): dictionary specifying key features needed calculate basis
             Expected KVs : 'col_name' (str) - name to use for the calculated basis
                                               column,
-                           'amount_col' (str) - name of column in df containing
-                                                transaction amounts,
+                           'quantity_col' (str) - name of column in df containing
+                                                  units or shares bought or sold,
                            'type_col' (str), - name of column in df containing
                                                transaction types,
                            'pos_increase_types' list(str) - list of transaction
-                                                  type which increase the position,
+                                                type which increase the position,
                            'pos_decrease_types' list(str) - list of transaction
-                                                  type which decrease the position,
+                                                type which decrease the position,
     
     Returns:
         pandas dataframe with a position_change column added
     
     """
-    def position_change(change_type, add_types, sub_types, trans_amount):
+    def position_change(change_type, add_types, sub_types, quant_amount):
         """ Calculates change in the investment position for a single transaction
         
         Args:
@@ -235,45 +235,48 @@ def add_position_change(df = None,
                 determine whether the amount adds to or subtracts from the position
             add_types list(str): list of transaction types which add to the position
             sub_types list(str): list of transaction types which subtract from the position
-            trans_amount (float): amount of the transaction impacting the position
+            quant_amount (float): number of units or shares bought or sold
             
         Returns:
             float value of the change in position for a transaction
         
         """
         if change_type in add_types:
-            position_change_val = np.abs(trans_amount)
+            position_change_val = np.abs(quant_amount)
         elif change_type in sub_types:
-            position_change_val = -np.abs(trans_amount)
+            position_change_val = -np.abs(quant_amount)
         else:
             position_change_val = float(0)
             
         return position_change_val
-    # 
-    df_pos = df.copy()
+    
     # if df is missing or if any of the require config keys are missing,
     # flag the user and return None
+    df_pos = df.copy()
+    print(f"add_position_change: shape of pass in df: {df_pos.shape}")
     try:
-        df is not None
-        try:
-            required_config_keys = {'col_name', 'amount_col', 'type_col',
-                                    'pos_increase_cols', 'pos_decrease_cols'}
-            if len(set(config.keys()).difference(required_config_keys)) == 0:
-                df_pos['position_change'] = \
-                    df_pos.apply(lambda row:
-                                         position_change(
-                                             row[config['type_col']],
-                                             config['pos_increase_cols'],
-                                             config['pos_decrease_cols'],
-                                             row[config['amount_col']]
-                                         ), axis=1
-                                     )
-        except LookupError:
-            print("add_position_change: One or more configuration keys are missing!")
-            return None
-    except Exception as e:
-        print("add_position_change: no dataframe passed in, returning None")
-        df_pos = None
+        required_config_keys = {'col_name', 'quantity_col', 'type_col',
+                                'pos_increase_cols', 'pos_decrease_cols'}
+        set_diff = set(config.keys()).difference(required_config_keys)
+        if len(set_diff) == 0:
+            df_pos[config['col_name']] = \
+                df_pos.apply(lambda row:
+                                    position_change(
+                                        row[config['type_col']],
+                                        config['pos_increase_cols'],
+                                        config['pos_decrease_cols'],
+                                        row[config['quantity_col']]
+                                    ), axis=1
+                             )
+        else:
+            print("add_position_change: config keys not the same as required")
+            print(f"add_position_change - set diff: {set_diff}")
+    except LookupError:
+        print("add_position_change: " +
+              "One or more configuration keys are missing!")
+        return None
+    
+    df_pos.reset_index(inplace=True, drop=True)
     
     return df_pos
 
@@ -306,3 +309,9 @@ def calc_value(df=None, config={"price_col": 'Price',
                  / 100).round(config["round_to"])
     
     return df_value
+
+
+def single_row_per_statement(df, date_col='Date',
+                             drop_cols=['Type', 'Quantity', '']):
+    
+    pass
