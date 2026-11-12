@@ -44,7 +44,44 @@ def fix_date_cols(df, date_col="Date", keep_first_n=10):
     return df
 
 
-def get_clean_account(df=None, config={}, unit_price_col=False):
+def sort_same_date_by(df=None, date_col='Date', by_col='Type', by_order_dict=None,
+                      keep_order_col=True, by_order_asc=True):
+    """ Sorts a dataframe by date_col primary and by by_col secondarily where the
+    secondary sort key (by_col) order is specified by the by_order_dict.
+     
+    Args:
+        df (pandas dataframe): Dataframe holding all transactions for a specific
+            holding (e.g. VMFXX or VDIGX)
+        date_col (str): name of column containing the date
+        by_col (str): name of column containing the type of transaction
+        by_order_dict (dict): specifies how the by_col column should be sorted.
+            Keys are the unique values in the by_col column.
+            Values ints specifying the order in which the secondary sort should
+            be done.
+    
+    Returns:
+        df (pandas dataframe): a cleaned Dataframe as described above
+    
+    """
+    if (df is not None): # and (by_order_dict is not None):
+        df_sorted = df.copy()
+        # create custom sort order column to sort within same dates
+        df_sorted['type_order'] = df_sorted[by_col].map(by_order_dict)
+        if by_order_asc:
+            df_sorted = df_sorted.sort_values(by=[date_col, 'type_order'],
+                                              ascending=True)
+        else:
+            df_sorted = df_sorted.sort_values(by=[date_col, 'type_order'],
+                                              ascending=False)
+        if not keep_order_col:
+            df_sorted.drop(columns=['type_order'], inplace=True)
+    else:
+        raise Exception("sort_same_date_by: Missing df, or/and by_order_dict - EXITING")
+
+    return df_sorted
+
+
+def get_clean_account(df=None, config={}, unit_price_col=False, sort_same_day={}):
     """ Performs the following cleaning steps to df which are described in the
     notebook: Zero out the empty values in the `Fees` column, replace spaces with
     _ in date column names, replace `NaN`s in `Symbol` column with `CASH` if value
@@ -62,6 +99,7 @@ def get_clean_account(df=None, config={}, unit_price_col=False):
         unit_price_col (bool): If True, sets all the values in the price_col to
             1.00 and the values in the quantity_col to the value of the Amount
             column which is useful for money market and cash accounts
+		sort_same_day (dict):
     
     Returns:
         df (pandas dataframe): a cleaned Dataframe as described above
@@ -79,40 +117,15 @@ def get_clean_account(df=None, config={}, unit_price_col=False):
         df_acc.loc[df_acc[config['symbol_col']] == config['symbol_filter'],
             [config['quantity_col']]] = df_acc[config['amount_col']]
     
+    if len(sort_same_day) > 0:
+        df_acc = sort_same_date_by(df=df_acc,
+                                   date_col=sort_same_day['date_col'],
+                                   by_col=sort_same_day['by_col'],
+                                   by_order_dict=sort_same_day['order_dict'],
+                                   keep_order_col=sort_same_day['keep_order_col'],
+                                   by_order_asc=sort_same_day['by_order_asc'])
+    
     return df_acc
-
-
-def sort_same_date_by(df=None, date_col='Date', by_col='Type', by_order_dict=None,
-                      keep_order_col=True, by_order_asc=True):
-    """ Sorts a dataframe by date_col primary and by by_col secondarily where the
-    secondary sort key (by_col) order is customized by the by_order_dict.
-     
-    Args:
-        df (pandas dataframe): Dataframe holding all transactions for a specific
-            holding (e.g. VMFXX or VDIGX)
-        date_col (str): name of column containing the date
-        by_col (str): name of column containing the type of transaction
-        by_order_dict (dict): specifies how the by_col column should be sorted.
-            Keys are the unique values in the by_col column.
-            Values are the order in which the secondary sort should be done.
-    
-    Returns:
-        df (pandas dataframe): a cleaned Dataframe as described above
-    
-    """
-    if (df is not None): # and (by_order_dict is not None):
-        df_sorted = df.copy()
-        # create custom sort order column to sort within same dates
-        df_sorted['type_order'] = df_sorted[by_col].map(by_order_dict)
-        df_sorted = df_sorted.sort_values(by=[date_col, 'type_order'],
-                                          ascending=True)
-        if not keep_order_col:
-            df_sorted.drop(columns=['type_order'], inplace=True)
-    else:
-        raise Exception("sort_same_date_by: Missing df, or/and by_order_dict - EXITING")
-
-    return df_sorted
-
 
 
 def add_basis_change(df=None,
@@ -222,7 +235,7 @@ def add_position_change(df = None,
                                                 type which increase the position,
                            'pos_decrease_types' list(str) - list of transaction
                                                 type which decrease the position,
-    
+
     Returns:
         pandas dataframe with a position_change column added
     
@@ -276,7 +289,8 @@ def add_position_change(df = None,
               "One or more configuration keys are missing!")
         return None
     
-    df_pos.reset_index(inplace=True, drop=True)
+    if same_day_sorted:
+        df_pos.reset_index(inplace=True, drop=True)
     
     return df_pos
 
