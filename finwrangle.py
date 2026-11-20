@@ -2,16 +2,90 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 
+# encapusulate Vanguard statement particulars
+vanguard_statement_config = {
+    'top_rows_to_skip': 3,
+    'last_rows_to_skip': 6,
+    'date_cols': ["Settlement date", "Trade date"],
+    'drop_cols': ['Account type', 'Trade date', 'Notes'],
+    'rename_cols': {
+                      'Transaction type': 'Type',
+                      'Commission & fees**': 'Fees',
+                      'Settlement date': 'Date'
+                   }
+}
+
+# encapusulate Schwab statement particulars
+schwab_statement_config = {}  # TODO
+
+def read_statement(statement_path, statement_sheet,
+                   top_rows_to_skip,
+                   last_rows_to_skip,
+                   date_cols,
+                   drop_cols,
+                   rename_cols):
+    """ Reads an investment statement stored in an Excel file and returns it as a
+    pandas dataframe
+    
+    
+    Args:
+        statement_path
+        statement_sheet
+        top_rows_to_skip
+        last_rows_to_skip
+        date_cols
+        drop_cols
+        rename_cols
+    
+    
+    Return:
+    
+    
+    """
+    df_stmt = pd.read_excel(io=statement_path,
+                            sheet_name=statement_sheet,
+                            skiprows = top_rows_to_skip,
+                            parse_dates=date_cols,
+                            skipfooter = last_rows_to_skip)
+    
+    df_stmt.drop(columns=drop_cols, inplace=True)
+    df_stmt.rename(columns=rename_cols, inplace=True)
+    
+    return df_stmt
+
+
+def read_vanguard(statement_path, statement_sheet,
+                  top_rows_to_skip = vanguard_statement_config['top_rows_to_skip'],
+                  last_rows_to_skip = vanguard_statement_config['last_rows_to_skip'],
+                  date_cols = vanguard_statement_config['date_cols'],
+                  drop_cols = vanguard_statement_config['drop_cols'],
+                  rename_cols = vanguard_statement_config['rename_cols']):
+    """ 
+    
+    
+    Args: (TODO: same as read_statement)
+    
+    Return: (TODO: same as read_statement)
+    
+    
+    """
+    df_vang = read_statement(statement_path, statement_sheet,
+                             top_rows_to_skip, last_rows_to_skip,
+                             date_cols, drop_cols, rename_cols)
+    
+    return df_vang
+
+
 
 def convert_currency_to_float(df, col_to_convert, keep_nan=True):
     """ Converts a Pandas dataframe currency column with a str/object (string)
     dtype into float
 
     Args:
-    df: pandas dataframe
-    col_to_convert: object or str - name of the column to convert to float
-    keep_non: bool - True (default) keeps missing values as NaNs. False converts
-                     missing values to 0
+        df: pandas dataframe
+        col_to_convert: object or str - name of the column to convert to float
+                        keep_non: bool - True (default) keeps missing values as
+                        NaNs. False converts missing values to 0
 
     Return:
     dataframe df with an updated col_to_convert column
