@@ -105,6 +105,41 @@ def parse_pdf_statement(statement_path, output_path):
     return True
 
 
+def md_to_csv(md_file_lines=[],
+              cols_to_keep=['Symbol', 'Price on'],
+              remove_chars=['$', ',']):
+    """ Converts a markdown file to a csv file
+
+    Args:
+        md_file_lines list(str): list of strings that are the lines from a md table
+
+    Returns:
+        list of strings that are lines from the md converted to csv
+
+    """
+    converted_lines = []
+    
+    for md_line in md_file_lines:
+        converted_line = md_line.split('| ')
+        # remove terminating | but specify all pipes to be sure
+        converted_line[-1] = converted_line[-1].replace('|', '', count=-1)
+        # remove empty first column, also makes header separator line empty - only one token!
+        converted_line = converted_line[1:]
+        for t, token in enumerate(converted_line):
+            # remove problematic charaters from each table value
+            for r in remove_chars:
+                token = token.replace(r, '')
+            # remove leading and trailing white space from each token
+            cleaned_token = token.strip()
+            converted_line[t] = cleaned_token
+
+        # drops the md header separator line
+        if len(converted_line) > 0:
+            converted_lines.append(converted_line)
+        
+    return converted_lines
+
+
 def convert_currency_to_float(df, col_to_convert, keep_nan=True):
     """ Converts a Pandas dataframe currency column with a str/object (string)
     dtype into float
@@ -201,7 +236,7 @@ def get_clean_account(df=None, config={}, unit_price_col=False, sort_same_day={}
         unit_price_col (bool): If True, sets all the values in the price_col to
             1.00 and the values in the quantity_col to the value of the Amount
             column which is useful for money market and cash accounts
-		sort_same_day (dict):
+        sort_same_day (dict):
     
     Returns:
         df (pandas dataframe): a cleaned Dataframe as described above
