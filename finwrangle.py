@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import datetime as dt
+from docling.document_converter import DocumentConverter
 
 # encapusulate Vanguard statement particulars
 vanguard_statement_config = {
@@ -16,16 +17,23 @@ vanguard_statement_config = {
 }
 
 # encapusulate Schwab statement particulars
-schwab_statement_config = {}  # TODO
+schwab_statement_config = {    # TODO
+    'top_rows_to_skip': 0,
+    'last_rows_to_skip': 0,
+    'date_cols': ["", ""],
+    'drop_cols': ['', '', ''],
+    'rename_cols': {
+                      'k1': 'v1',
+                      'k2': 'v2',
+                      'k3': 'v3'
+                   }
+}
 
-def read_statement(statement_path, statement_sheet,
-                   top_rows_to_skip,
-                   last_rows_to_skip,
-                   date_cols,
-                   drop_cols,
-                   rename_cols):
-    """ Reads an investment statement stored in an Excel file and returns it as a
-    pandas dataframe
+def read_txns(statement_path, statement_sheet,
+              top_rows_to_skip, last_rows_to_skip,
+              date_cols, drop_cols, rename_cols):
+    """ Reads an investment transaction report stored in an Excel file and
+    returns it as a pandas dataframe
     
     
     Args:
@@ -54,13 +62,14 @@ def read_statement(statement_path, statement_sheet,
     return df_stmt
 
 
-def read_vanguard(statement_path, statement_sheet,
-                  top_rows_to_skip = vanguard_statement_config['top_rows_to_skip'],
-                  last_rows_to_skip = vanguard_statement_config['last_rows_to_skip'],
-                  date_cols = vanguard_statement_config['date_cols'],
-                  drop_cols = vanguard_statement_config['drop_cols'],
-                  rename_cols = vanguard_statement_config['rename_cols']):
-    """ 
+def read_vanguard_txns(
+    statement_path, statement_sheet,
+    top_rows_to_skip = vanguard_statement_config['top_rows_to_skip'],
+    last_rows_to_skip = vanguard_statement_config['last_rows_to_skip'],
+    date_cols = vanguard_statement_config['date_cols'],
+    drop_cols = vanguard_statement_config['drop_cols'],
+    rename_cols = vanguard_statement_config['rename_cols']):
+    """ Read a Vanguard transactions report saved as an Excel file
     
     
     Args: (TODO: same as read_statement)
@@ -69,12 +78,66 @@ def read_vanguard(statement_path, statement_sheet,
     
     
     """
-    df_vang = read_statement(statement_path, statement_sheet,
-                             top_rows_to_skip, last_rows_to_skip,
-                             date_cols, drop_cols, rename_cols)
+    df_vang = read_txns(statement_path, statement_sheet,
+                        top_rows_to_skip, last_rows_to_skip,
+                        date_cols, drop_cols, rename_cols)
     
     return df_vang
 
+
+def parse_pdf_statement(statement_path, output_path):
+    """ Parses a pdf investment statement and writes to a markdown file
+    
+    Precondition: docling package must be installed
+    
+    """
+    converter = DocumentConverter()
+    # create a docling object
+    docling_obj = converter.convert(statement_path)
+    # Export to markdown
+    markdown_content = docling_obj.document.export_to_markdown()
+    # Save to file
+    with open(output_path, "w") as f:
+        f.write(markdown_content)
+        
+    # print(f"Successfully converted {statement_path} to {output_path}")
+    
+    return True
+
+
+def md_to_csv(md_file_lines=[],
+              cols_to_keep=['Symbol', 'Price on'],
+              remove_chars=['$', ',']):
+    """ Converts a markdown file to a csv file
+
+    Args:
+        md_file_lines list(str): list of strings that are the lines from a md table
+
+    Returns:
+        list of strings that are lines from the md converted to csv
+
+    """
+    converted_lines = []
+    
+    for md_line in md_file_lines:
+        converted_line = md_line.split('| ')
+        # remove terminating | but specify all pipes to be sure
+        converted_line[-1] = converted_line[-1].replace('|', '', count=-1)
+        # remove empty first column, also makes header separator line empty - only one token!
+        converted_line = converted_line[1:]
+        for t, token in enumerate(converted_line):
+            # remove problematic charaters from each table value
+            for r in remove_chars:
+                token = token.replace(r, '')
+            # remove leading and trailing white space from each token
+            cleaned_token = token.strip()
+            converted_line[t] = cleaned_token
+
+        # drops the md header separator line
+        if len(converted_line) > 0:
+            converted_lines.append(converted_line)
+        
+    return converted_lines
 
 
 def convert_currency_to_float(df, col_to_convert, keep_nan=True):
