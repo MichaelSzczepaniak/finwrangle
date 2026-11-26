@@ -16,8 +16,14 @@ vanguard_statement_config = {
                    }
 }
 
-# encapusulate Schwab statement particulars
-schwab_statement_config = {    # TODO
+# encapusulate Vanguard transaction report particulars
+vanguard_transactions_config = {
+    'keep_cols_fixed': ['Symbol', 'Name', 'Quantity'],
+    'keep_cols_prefix': ['Price on', 'Balance on']  # drop Balance on <prior month>
+}
+
+# encapusulate Schwab statement particulars ----> TODO
+schwab_statement_config = {
     'top_rows_to_skip': 0,
     'last_rows_to_skip': 0,
     'date_cols': ["", ""],
@@ -105,16 +111,18 @@ def parse_pdf_statement(statement_path, output_path):
     return True
 
 
-def md_to_csv(md_file_lines=[],
-              cols_to_keep=['Symbol', 'Price on'],
-              remove_chars=['$', ',']):
-    """ Converts a markdown file to a csv file
+def md_to_string_rows(md_file_lines=[],
+                      cols_to_keep=['Symbol', 'Price on'],
+                      remove_chars=['$', ',']):
+    """ Converts a list of strings from a markdown file to a list of strings
 
     Args:
-        md_file_lines list(str): list of strings that are the lines from a md table
+        md_file_lines list(str): list of strings where each element is a complete
+        line from the markdown table
 
     Returns:
-        list of strings that are lines from the md converted to csv
+        list of strings that are lines of string values extracted from a markdown
+        tablemd converted to csv
 
     """
     converted_lines = []
@@ -138,6 +146,60 @@ def md_to_csv(md_file_lines=[],
             converted_lines.append(converted_line)
         
     return converted_lines
+
+
+def row_lines_to_df(list_of_rows, eom_date="",
+                    drop_keys=[], rename_keys={}, date_kv=("Date", ""),
+                    convert_to_float=[]):
+    """ Converts a list of strings that are 
+
+
+    Args:
+        list_of_rows: list of list(str) where each inner list holds values from a
+        row in a table
+
+    """
+    # get 
+    
+    
+    dict_of_lists = {}
+    # assume first row are column headers, each corrisponding list will contain values for that column
+    col_headers = list_of_rows[0]
+    # print(f"column headers: {col_headers}")
+    header_value_count = len(col_headers)
+    dict_of_lists = {h: [] for h in col_headers}  # col names are the keys
+    if len(date_kv) == 2:  # date column and the fill value
+        data_row_count = len(list_of_rows) - 1
+        dict_of_lists[date_kv[0]] = [date_kv[1] for i in range(data_row_count)]
+        
+    # check that header column count = row items
+    for row in list_of_rows[1:]:  # first row are headers, start filling data
+        row_value_count = len(row)
+        if row_value_count != header_value_count:
+            raise ValueError(f"header value count = {header_value_count} | row value count = {row_value_count}")
+            sys.exit(1)
+            
+        for col, _ in enumerate(col_headers):
+            # use index to ensure data alignment
+            dict_of_lists[col_headers[col]].append(row[col])
+    
+    
+    # drop specified columns
+    if len(drop_keys) > 0:
+        for drop_key in drop_keys:
+            dict_of_lists.pop(drop_key)
+    # rename specified columns
+    if len(rename_keys) > 0:
+        for old_value, new_value in rename_keys.items():
+            dict_of_lists[new_value] = dict_of_lists.pop(old_value)
+    #
+    if len(convert_to_float) > 0:
+        pass  # TODO
+    
+    df = pd.DataFrame(dict_of_lists)
+    
+    return df
+
 
 
 def convert_currency_to_float(df, col_to_convert, keep_nan=True):
@@ -236,7 +298,7 @@ def get_clean_account(df=None, config={}, unit_price_col=False, sort_same_day={}
         unit_price_col (bool): If True, sets all the values in the price_col to
             1.00 and the values in the quantity_col to the value of the Amount
             column which is useful for money market and cash accounts
-		sort_same_day (dict):
+        sort_same_day (dict):
     
     Returns:
         df (pandas dataframe): a cleaned Dataframe as described above
